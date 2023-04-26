@@ -8,15 +8,15 @@ import numpy as np
 import pandas as pd
 from numpy import var, mean
 
-from wittgenstein_change_encod.check import (
+from wittgenstein2.check import (
     _warn,
     _check_all_of_type,
     _check_valid_index,
     _check_rule_exists,
 )
-from wittgenstein_change_encod.utils import drop_chars
-from wittgenstein_change_encod import utils
-from wittgenstein_change_encod.utils import rnd, weighted_avg_freqs
+from wittgenstein2.utils import drop_chars
+from wittgenstein2 import utils
+from wittgenstein2.utils import rnd, weighted_avg_freqs
 
 
 class Ruleset:

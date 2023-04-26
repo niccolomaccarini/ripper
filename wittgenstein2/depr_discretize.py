@@ -4,8 +4,8 @@
 from collections import defaultdict
 import numpy as np
 
-from wittgenstein_change_encod.base_functions import truncstr
-from wittgenstein_change_encod.utils import rnd
+from wittgenstein2.base_functions import truncstr
+from wittgenstein2.utils import rnd
 
 
 class BinTransformer:

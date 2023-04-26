@@ -7,8 +7,8 @@ import numpy as np
 
 import pandas as pd
 
-from wittgenstein_change_encod.check import _check_is_model_fit, _warn
-from wittgenstein_change_encod.base import (
+from wittgenstein2.check import _check_is_model_fit, _warn
+from wittgenstein2.base import (
     Rule,
     Ruleset,
     asrule,
@@ -16,9 +16,9 @@ from wittgenstein_change_encod.base import (
     cond_fromstr,
     ruleset_fromstr,
 )
-import wittgenstein_change_encod.base_functions as base_functions
-import wittgenstein_change_encod.preprocess as preprocess
-from wittgenstein_change_encod.preprocess import BinTransformer, _upgrade_bin_transformer_ifdepr
+import wittgenstein2.base_functions as base_functions
+import wittgenstein2.preprocess as preprocess
+from wittgenstein2.preprocess import BinTransformer, _upgrade_bin_transformer_ifdepr
 
 
 class AbstractRulesetClassifier(ABC):

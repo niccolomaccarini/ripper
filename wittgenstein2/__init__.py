@@ -1,6 +1,5 @@
 # Author: Ilan Moscovitz <ilan.moscovitz@gmail.com>
 # License: MIT
-# This version contains a few improvement written by myself - Niccolò
 
 from .irep import IREP
 from .ripper import RIPPER

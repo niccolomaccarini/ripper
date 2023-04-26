@@ -1,9 +1,9 @@
 # Author: Ilan Moscovitz <ilan.moscovitz@gmail.com>
 # License: MIT
 
-from wittgenstein_change_encod.base_functions import score_accuracy
-from wittgenstein_change_encod.ripper import RIPPER
-from wittgenstein_change_encod import utils
+from wittgenstein2.base_functions import score_accuracy
+from wittgenstein2.ripper import RIPPER
+from wittgenstein2 import utils
 
 
 def interpret_model(

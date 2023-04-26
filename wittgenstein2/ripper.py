@@ -12,14 +12,14 @@ import numpy as np
 
 import pandas as pd
 
-from wittgenstein_change_encod import base, base_functions, preprocess
+from wittgenstein2 import base, base_functions, preprocess
 from .abstract_ruleset_classifier import AbstractRulesetClassifier
 from .base import Cond, Rule, Ruleset, asruleset
 from .base_functions import score_accuracy
 from .catnap import CatNap
 from .check import _check_is_model_fit
-from wittgenstein_change_encod import utils
-from wittgenstein_change_encod.utils import rnd
+from wittgenstein2 import utils
+from wittgenstein2.utils import rnd
 
 
 class RIPPER(AbstractRulesetClassifier):
@@ -1197,14 +1197,13 @@ def _r_theory_bits(rule, possible_conds, bits_dict=None, verbosity=0):
         pr = k / n
 
         S = k * math.log2(1 / pr) + (n - k) * math.log2((1 / (1 - pr)))  # S(n, k, pr)
-        #K = math.log2(k)  # Number bits needed to send integer k
-                          # This is wrong, or at least not consistent with the theory as we should be using the universal code for
-                          # integers here - Niccolò
         if k == 1:
             K = 2
         else:
-            K = 2*math.log2(k)    # In this way the encoding of the integer k respects the universal code for integers - Niccolò
-        
+            K = 2*math.log2(k)
+        #K = math.log2(k)  # Number bits needed to send integer k
+                          # This is wrong, or at least not consistent with the theory as we should be using the universal code for
+                          # integers here - Niccolò
         rule_dl = 0.5 * (
             K + S
         )  # Divide by 2 a la Quinlan. Cohen: "to adjust for possible redundency in attributes"
@@ -1224,10 +1223,10 @@ def _rs_theory_bits(ruleset, possible_conds, verbosity=0):
     #    raise TypeError(f'param ruleset in _rs_theory_bits should be type Ruleset')
     n = len(ruleset.rules)
     if n == 1:
-            total = 2
+        total = 0.5*2
     else:
-        total = 2*math.log2(n)    # In this way the encoding of the number of rules respects the universal code for integers - Niccolò
-    
+        total = 0.5*2*math.log2(n)
+        
     for rule in ruleset.rules:
         total += _r_theory_bits(rule, possible_conds, verbosity=verbosity)
         # total += rule_bits(rule, possible_conds, rem_pos, rem_neg, verbosity=verbosity)
@@ -1257,8 +1256,9 @@ def _exceptions_bits(ruleset, pos_df, neg_df, verbosity=0):
         pos_df
     )  # Number false negatives = positives not covered by the ruleset
     exceptions_dl = math.log2(base_functions.nCr(p, fp)) + math.log2(
-        base_functions.nCr((N - p), fn) + math.log2(p + 1) + math.log2(N - p + 1)
-    )
+        base_functions.nCr((N - p), fn))
+    exceptions_dl = exceptions_dl  + math.log2(p + 1) + math.log2(N - p + 1)
+    
     if verbosity >= 5:
         print(
             f"exceptions_bits| {ruleset.truncstr()}: \n N {N} p {p} fp {fp} fn {fn}: exceptions_bits {rnd(exceptions_dl)}"
@@ -1282,9 +1282,11 @@ def _exceptions_bits_cn(cn, ruleset, pos_idx, neg_idx, verbosity=0):
     fn = len(pos_idx) - len(
         pos_cov
     )  # Number false negatives = positives not covered by the ruleset
-    exceptions_dl = math.log2(base_functions.nCr(p, fp)) + math.log2(
-        base_functions.nCr((N - p), fn) + math.log2(p + 1) + math.log2(N - p + 1)
-    )
+    add1 = math.log2(p+1)
+    add2 = math.log2(N - p + 1)
+    add3 = math.log2(base_functions.nCr(p, fp))
+    add4 = math.log2(base_functions.nCr((N - p), fn))
+    exceptions_dl = add1 + add2 + add3 + add4
     if verbosity >= 5:
         print(
             f"exceptions_bits| {ruleset.truncstr()}: \n N {N} p {p} fp {fp} fn {fn}: exceptions_bits {rnd(exceptions_dl)}"
