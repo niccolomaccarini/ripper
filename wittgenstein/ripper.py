@@ -37,7 +37,7 @@ class RIPPER(AbstractRulesetClassifier):
         max_rule_conds=None,
         max_total_conds=None,
         random_state=None,
-        verbosity=0,
+        verbosity=0
     ):
         """Create a RIPPER classifier.
 
