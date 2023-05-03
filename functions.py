@@ -4,6 +4,8 @@ import scipy
 import wittgenstein3 as lw3
 import wittgenstein as lw
 from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import train_test_split
+
 
 def accuracy(df, class_feat, pos_class, cv=10, n_rep=10, W=0.5):
     
@@ -27,7 +29,7 @@ def accuracy(df, class_feat, pos_class, cv=10, n_rep=10, W=0.5):
 
     return np.mean(acc)
 
-def acc_rate(df, class_feat, pos_class, cv=10, n_rep=10, W=0.5):
+def acc_rate(df_train, df_test, class_feat, pos_class, cv=10, n_rep=10, W=0.5):
     
     """Function to compare the accuracies of standard RIPPERk and enhanced RIPPERk on a given dataset df: first 
     the accuracies of both models acc_standard and acc_enhanced are computed, then the fraction 
@@ -61,7 +63,7 @@ def param_selection(X_train, class_feat, pos_class, cv = 10, param = 'W', W = No
     
     # Preprocess the data as usual
     
-    X = df.loc[:,X_train.columns != class_feat]
+    X = X_train.loc[:,X_train.columns != class_feat]
     X = pd.get_dummies(X, columns=X.select_dtypes('object').columns)
     y = X_train[class_feat]
     y = y.map(lambda x: 1 if x==pos_class else 0)
@@ -79,7 +81,7 @@ def param_selection(X_train, class_feat, pos_class, cv = 10, param = 'W', W = No
             ripper_clf = lw3.RIPPER(k=2, W = a)
             score_a = cross_val_score(ripper_clf, X, y, cv = cv) 
             
-            ripper_clf = lw.RIPPER(k=2, W = b)
+            ripper_clf = lw3.RIPPER(k=2, W = b)
             score_b = cross_val_score(ripper_clf, X, y, cv = cv) 
             
             return interval[np.argmax([score_a, score_b])]
@@ -100,7 +102,34 @@ def param_selection(X_train, class_feat, pos_class, cv = 10, param = 'W', W = No
 
 
         
+def acc_rate_with_param_selection(df, class_feat, pos_class, cv = 10, param = 'W', W = None, budget = 15):
+    
+    """Function to compute the accuracy rate of improved RIPPERk using optimized W and standard RIPPERk. The idea is to
+    separate the dataset in a training and test set, and select via cross validation on X_train the best W. Then compare the two
+    algorithms on the test set and return the accuracy rate."""
+    
+    # Separate the data in training and test set
+    
+    X_train, X_test = train_test_split(df, test_size = 0.25)
+    
+    # Find the best value for W
+    
+    W = param_selection(X_train, class_feat, pos_class, cv = cv, param = 'W', W = None, budget = budget)
+    
+    # Train the algorithms
+    
+    ripper_standard = lw.RIPPER(k=2)
+    ripper_improved = lw3.RIPPER(k=2, W=W)
+    
+    ripper_standard.fit(X_train, class_feat = class_feat, pos_class = pos_class)
+    y_test = X_test[class_feat]
+    acc_standard = ripper_standard.score(X_test, y_test)
+    
+    ripper_improved.fit(X_train, class_feat = class_feat, pos_class = pos_class)
+    y_test = X_test[class_feat]
+    acc_improved = ripper_improved.score(X_test, y_test)
         
+    return acc_improved / acc_standard
         
         
         
