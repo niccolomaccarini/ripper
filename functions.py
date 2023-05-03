@@ -68,35 +68,40 @@ def param_selection(X_train, class_feat, pos_class, cv = 10, param = 'W', W = No
     y = X_train[class_feat]
     y = y.map(lambda x: 1 if x==pos_class else 0)
     
-    # Define how to select the best element in the interval's boundary
+    # Define how to select the best element in the interval's 1/4th and 3/4th
     
     if param == 'W':
-        interval = [0.1, 0.9]
+        interval = [0,1]
         
         def return_best_a(interval):
-            a = interval[0]
-            b = interval[1]
+            low = interval[0]
+            high = interval[1]
+            
+            a = 3*low/4 + high/4
+            b = low/4 + 3*high/4
+            
+            candidates = [a, b]
 
             # Compute the elements' score and compare them
             ripper_clf = lw3.RIPPER(k=2, W = a)
-            score_a = cross_val_score(ripper_clf, X, y, cv = cv) 
+            scores_a = cross_val_score(ripper_clf, X, y, cv = cv) 
             
             ripper_clf = lw3.RIPPER(k=2, W = b)
-            score_b = cross_val_score(ripper_clf, X, y, cv = cv) 
+            scores_b = cross_val_score(ripper_clf, X, y, cv = cv) 
             
-            return interval[np.argmax([score_a, score_b])]
+            return candidates[np.argmax([np.mean(scores_a), np.mean(scores_b)])]
         
         
         # Now run iteratively the function above
         i = 1
-        c = 1/2
+        p = 2
         
         while i <= budget:
             
             i += 1
             best_point = return_best_a(interval)
-            interval = [c, best_point].sort()
-            c = (c + best_point)/2
+            interval = [best_point - (1/2)**p, best_point + (1/2)**p]
+            p += 1
             
         return best_point
 
@@ -129,7 +134,7 @@ def acc_rate_with_param_selection(df, class_feat, pos_class, cv = 10, param = 'W
     y_test = X_test[class_feat]
     acc_improved = ripper_improved.score(X_test, y_test)
         
-    return acc_improved / acc_standard
+    return {'acc_rate':acc_improved / acc_standard, 'acc_standard': acc_standard, 'acc_improved': acc_improved}
         
         
         
