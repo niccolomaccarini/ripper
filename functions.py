@@ -56,7 +56,7 @@ def acc_rate(df_train, df_test, class_feat, pos_class, cv=10, n_rep=10, W=0.5):
 
     
     
-def param_selection(X_train, class_feat, pos_class, cv = 10, param = 'W', W = None, budget = 15):
+def param_selection(X_train, class_feat, pos_class, cv = 10, param = 'W', W = None, budget = 15, grid_search = True, verbosity = True):
     
     """Function to select the best hyperparameter using k-fold cross validation, as input it needs
     a training set with a given class_feat to classify. It can be used to select both W and the number of discretization bins"""
@@ -73,35 +73,60 @@ def param_selection(X_train, class_feat, pos_class, cv = 10, param = 'W', W = No
     if param == 'W':
         interval = [0,1]
         
-        def return_best_a(interval):
-            low = interval[0]
-            high = interval[1]
-            
-            a = 3*low/4 + high/4
-            b = low/4 + 3*high/4
-            
-            candidates = [a, b]
+        if grid_search == False:
+            print('We blababvsvdsf')
+        
+            def return_best_a(interval):
+                low = interval[0]
+                high = interval[1]
 
-            # Compute the elements' score and compare them
-            ripper_clf = lw3.RIPPER(k=2, W = a)
-            scores_a = cross_val_score(ripper_clf, X, y, cv = cv) 
-            
-            ripper_clf = lw3.RIPPER(k=2, W = b)
-            scores_b = cross_val_score(ripper_clf, X, y, cv = cv) 
-            
-            return candidates[np.argmax([np.mean(scores_a), np.mean(scores_b)])]
-        
-        
-        # Now run iteratively the function above
-        i = 1
-        p = 2
-        
-        while i <= budget:
-            
-            i += 1
-            best_point = return_best_a(interval)
-            interval = [best_point - (1/2)**p, best_point + (1/2)**p]
+                a = 3*low/4 + high/4
+                b = low/4 + 3*high/4
+
+                candidates = [a, b]
+
+                # Compute the elements' score and compare them
+                ripper_clf = lw3.RIPPER(k=2, W = a)
+                scores_a = cross_val_score(ripper_clf, X, y, cv = cv) 
+
+                ripper_clf = lw3.RIPPER(k=2, W = b)
+                scores_b = cross_val_score(ripper_clf, X, y, cv = cv) 
+
+                return candidates[np.argmax([np.mean(scores_a), np.mean(scores_b)])]
+
+
+            # Now run iteratively the function above
+            i = 1
+            p = 2
+
+            while i <= budget:
+
+                i += 1
+                best_point = return_best_a(interval)
+                interval = [best_point - (1/2)**p, best_point + (1/2)**p]
             p += 1
+            
+        else:    
+        # Perform grid search to find the best value for W
+        
+            ws = np.arange(0.1, 1, 0.05)
+            best_point = 0.05
+            ripper_clf = lw3.RIPPER(k = 2, W = 0.05)
+            best_score = np.mean(cross_val_score(ripper_clf, X, y, cv = cv))
+
+            for w in ws:
+                # numpy.arange might make some floating point errors so we need to round the value of W after the first two digits
+                w = round(w, 2)
+                
+                ripper_clf = lw3.RIPPER(k=2, W = w)
+                new_score = np.mean(cross_val_score(ripper_clf, X, y, cv = cv))
+
+                if new_score > best_score:
+                    best_score = new_score
+                    best_point = w
+                    
+        if verbosity:
+            print('Best W found: ' + str(best_point) + ' , best score: ' + str(best_score))
             
         return best_point
 
@@ -123,18 +148,26 @@ def acc_rate_with_param_selection(df, class_feat, pos_class, cv = 10, param = 'W
     
     # Train the algorithms
     
-    ripper_standard = lw.RIPPER(k=2)
-    ripper_improved = lw3.RIPPER(k=2, W=W)
+    acc_standard = []
+    acc_improved = []
     
-    ripper_standard.fit(X_train, class_feat = class_feat, pos_class = pos_class)
-    y_test = X_test[class_feat]
-    acc_standard = ripper_standard.score(X_test, y_test)
+    for i in range(10):
     
-    ripper_improved.fit(X_train, class_feat = class_feat, pos_class = pos_class)
-    y_test = X_test[class_feat]
-    acc_improved = ripper_improved.score(X_test, y_test)
+        ripper_standard = lw.RIPPER(k=2)
+        ripper_improved = lw3.RIPPER(k=2, W=W)
+
+        ripper_standard.fit(X_train, class_feat = class_feat, pos_class = pos_class)
+        y_test = X_test[class_feat]
+        acc_standard += [ripper_standard.score(X_test, y_test)]
+
+        ripper_improved.fit(X_train, class_feat = class_feat, pos_class = pos_class)
+        y_test = X_test[class_feat]
+        acc_improved += [ripper_improved.score(X_test, y_test)]
         
-    return {'acc_rate':acc_improved / acc_standard, 'acc_standard': acc_standard, 'acc_improved': acc_improved}
+    
+        
+    return {'acc_rate': np.mean(acc_improved) / np.mean(acc_standard), 'acc_standard': np.mean(acc_standard), 
+            'acc_improved': np.mean(acc_improved)}
         
         
         

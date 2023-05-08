@@ -12,14 +12,14 @@ import numpy as np
 
 import pandas as pd
 
-from wittgenstein2 import base, base_functions, preprocess
+from wittgenstein3 import base, base_functions, preprocess
 from .abstract_ruleset_classifier import AbstractRulesetClassifier
 from .base import Cond, Rule, Ruleset, asruleset
 from .base_functions import score_accuracy
 from .catnap import CatNap
 from .check import _check_is_model_fit
-from wittgenstein2 import utils
-from wittgenstein2.utils import rnd
+from wittgenstein3 import utils
+from wittgenstein3.utils import rnd
 
 
 class RIPPER(AbstractRulesetClassifier):
@@ -38,6 +38,7 @@ class RIPPER(AbstractRulesetClassifier):
         max_total_conds=None,
         random_state=None,
         verbosity=0,
+        W = 0.5
     ):
         """Create a RIPPER classifier.
 
@@ -70,6 +71,9 @@ class RIPPER(AbstractRulesetClassifier):
                3: Show Ruleset grow/optimization calculations
                4: Show Rule grow/prune steps
                5: Show Rule grow/prune calculations
+               
+        W : float, default=0.5
+            Discount on the theory bits. 
         """
 
         AbstractRulesetClassifier.__init__(
@@ -86,6 +90,7 @@ class RIPPER(AbstractRulesetClassifier):
         self.VALID_HYPERPARAMETERS.update({"k", "dl_allowance"})
         self.k = k
         self.dl_allowance = dl_allowance
+        self.W = W
 
     def __str__(self):
         """Return string representation of a RIPPER classifier."""
@@ -224,6 +229,7 @@ class RIPPER(AbstractRulesetClassifier):
                 max_total_conds=self.max_total_conds,
                 initial_model=initial_model,
                 random_state=self.random_state,
+                W=self.W,
             )
         else:
             self.ruleset_ = self._grow_ruleset(
@@ -236,6 +242,7 @@ class RIPPER(AbstractRulesetClassifier):
                 max_total_conds=self.max_total_conds,
                 initial_model=initial_model,
                 random_state=self.random_state,
+                W=self.W,
             )
         if self.verbosity >= 1:
             print()
@@ -262,6 +269,7 @@ class RIPPER(AbstractRulesetClassifier):
                     neg_idx,
                     prune_size=self.prune_size,
                     random_state=iter_random_state,
+                    W=self.W
                 )
             else:
                 newset = self._optimize_ruleset(
@@ -270,6 +278,7 @@ class RIPPER(AbstractRulesetClassifier):
                     neg_df,
                     prune_size=self.prune_size,
                     random_state=iter_random_state,
+                    W=self.W
                 )
 
             if self.verbosity >= 1:
@@ -300,6 +309,7 @@ class RIPPER(AbstractRulesetClassifier):
                 max_rule_conds=self.max_rule_conds,
                 max_total_conds=self.max_total_conds,
                 random_state=self.random_state,
+                W=self.W
             )
         else:
             self._cover_remaining_positives(
@@ -308,6 +318,7 @@ class RIPPER(AbstractRulesetClassifier):
                 max_rule_conds=self.max_rule_conds,
                 max_total_conds=self.max_total_conds,
                 random_state=self.random_state,
+                W=self.W
             )
 
         #################################################
@@ -326,6 +337,7 @@ class RIPPER(AbstractRulesetClassifier):
                 bestsubset_dl=True,
                 ret_bestsubset=True,
                 verbosity=self.verbosity,
+                W=self.W
             )
         else:
             mdl_subset, _ = _rs_total_bits(
@@ -336,6 +348,7 @@ class RIPPER(AbstractRulesetClassifier):
                 bestsubset_dl=True,
                 ret_bestsubset=True,
                 verbosity=self.verbosity,
+                W=self.W
             )
         self.ruleset_ = mdl_subset
         if self.verbosity >= 1:
@@ -383,7 +396,7 @@ class RIPPER(AbstractRulesetClassifier):
         actuals = [yi == self.pos_class for yi in utils.aslist(y)]
         return score_function(actuals, predictions)
 
-    def _set_theory_dl_lookup(self, df, size=15, verbosity=0):
+    def _set_theory_dl_lookup(self, df, size=15, verbosity=0, W=0.5):
         """Precalculate rule theory dls for various-sized rules."""
 
         self.dl_dict = {}
@@ -394,7 +407,7 @@ class RIPPER(AbstractRulesetClassifier):
         for n in range(1, size + 1):
             rule = Rule([Cond("_", "_")] * n)
             dl = _r_theory_bits(
-                rule, temp.possible_conds, bits_dict=None, verbosity=verbosity
+                rule, temp.possible_conds, bits_dict=None, verbosity=verbosity, W=W,
             )
             self.dl_dict[n] = dl
             if verbosity >= 2:
@@ -411,6 +424,7 @@ class RIPPER(AbstractRulesetClassifier):
         max_total_conds=None,
         initial_model=None,
         random_state=None,
+        W=0.5
     ):
         """Grow a Ruleset with pruning."""
         ruleset = self._ruleset_frommodel(initial_model)
@@ -479,21 +493,21 @@ class RIPPER(AbstractRulesetClassifier):
 
             if ruleset_dl is None:  # First Rule to be added
                 rule_dl = _r_theory_bits(
-                    pruned_rule, ruleset.possible_conds, verbosity=self.verbosity
+                    pruned_rule, ruleset.possible_conds, verbosity=self.verbosity, W=W
                 )
                 theory_dl = rule_dl
                 data_dl = _exceptions_bits(
-                    ruleset, pos_df, neg_df, verbosity=self.verbosity
+                    ruleset, pos_df, neg_df, verbosity=self.verbosity, W=W
                 )
                 ruleset_dl = theory_dl + data_dl
                 mdl = ruleset_dl
             else:
                 rule_dl = _r_theory_bits(
-                    pruned_rule, ruleset.possible_conds, verbosity=self.verbosity
+                    pruned_rule, ruleset.possible_conds, verbosity=self.verbosity, W=W
                 )
                 theory_dl += rule_dl
                 data_dl = _exceptions_bits(
-                    ruleset, pos_df, neg_df, verbosity=self.verbosity
+                    ruleset, pos_df, neg_df, verbosity=self.verbosity, W=W
                 )
                 ruleset_dl = theory_dl + data_dl
                 dl_diff = ruleset_dl - mdl
@@ -538,6 +552,7 @@ class RIPPER(AbstractRulesetClassifier):
         max_total_conds=None,
         initial_model=None,
         random_state=None,
+        W=0.5
     ):
         """Grow a Ruleset with pruning."""
         ruleset = self._ruleset_frommodel(initial_model)
@@ -616,7 +631,7 @@ class RIPPER(AbstractRulesetClassifier):
 
             if ruleset_dl is None:  # First Rule to be added
                 rule_dl = _r_theory_bits(
-                    pruned_rule, ruleset.possible_conds, verbosity=self.verbosity
+                    pruned_rule, ruleset.possible_conds, verbosity=self.verbosity, W=W
                 )
                 theory_dl = rule_dl
                 data_dl = _exceptions_bits_cn(
@@ -626,7 +641,7 @@ class RIPPER(AbstractRulesetClassifier):
                 mdl = ruleset_dl
             else:
                 rule_dl = _r_theory_bits(
-                    pruned_rule, ruleset.possible_conds, verbosity=self.verbosity
+                    pruned_rule, ruleset.possible_conds, verbosity=self.verbosity, W=W
                 )
                 theory_dl += rule_dl
                 data_dl = _exceptions_bits_cn(
@@ -672,6 +687,7 @@ class RIPPER(AbstractRulesetClassifier):
         prune_size,
         max_rule_conds=None,
         random_state=None,
+        W=0.5
     ):
         """Optimization phase."""
 
@@ -691,6 +707,7 @@ class RIPPER(AbstractRulesetClassifier):
             neg_df,
             bestsubset_dl=True,
             verbosity=self.verbosity,
+            W=W,
         )
         if self.verbosity >= 3:
             print(f"original ruleset potential dl: {rnd(original_dl)}")
@@ -782,6 +799,7 @@ class RIPPER(AbstractRulesetClassifier):
                     neg_df,
                     bestsubset_dl=True,
                     verbosity=self.verbosity,
+                    W=W,
                 )
                 if pr_replacement != rule
                 else original_dl
@@ -796,6 +814,7 @@ class RIPPER(AbstractRulesetClassifier):
                     neg_df,
                     bestsubset_dl=True,
                     verbosity=self.verbosity,
+                    W=W,
                 )
                 if pr_revision != rule
                 else original_dl
@@ -862,6 +881,7 @@ class RIPPER(AbstractRulesetClassifier):
         prune_size,
         max_rule_conds=None,
         random_state=None,
+        W=0.5
     ):
         """Optimization phase."""
 
@@ -882,6 +902,7 @@ class RIPPER(AbstractRulesetClassifier):
             neg_idx,
             bestsubset_dl=True,
             verbosity=self.verbosity,
+            W=W,
         )
         if self.verbosity >= 3:
             print(f"original ruleset potential dl: {rnd(original_dl)}")
@@ -981,6 +1002,7 @@ class RIPPER(AbstractRulesetClassifier):
                     bestsubset_dl=False,
                     ret_bestsubset=False,
                     verbosity=0,
+                    W=W,
                 )
                 if pr_replacement != rule
                 else original_dl
@@ -997,6 +1019,7 @@ class RIPPER(AbstractRulesetClassifier):
                     bestsubset_dl=False,
                     ret_bestsubset=False,
                     verbosity=0,
+                    W=W,
                 )
                 if pr_revision != rule
                 else original_dl
@@ -1062,6 +1085,7 @@ class RIPPER(AbstractRulesetClassifier):
         max_rule_conds=None,
         max_total_conds=None,
         random_state=None,
+        W=0.5
     ):
         """Stage 3: Post-optimization, cover any remaining uncovered positives."""
         pos_remaining, neg_remaining = base_functions.pos_neg_split(
@@ -1085,6 +1109,7 @@ class RIPPER(AbstractRulesetClassifier):
                 max_rule_conds=max_rule_conds,
                 max_total_conds=max_total_conds,
                 random_state=random_state,
+                W=W,
             )
             if self.verbosity >= 1:
                 print("GREW FINAL RULES")
@@ -1102,6 +1127,7 @@ class RIPPER(AbstractRulesetClassifier):
         max_rule_conds=None,
         max_total_conds=None,
         random_state=None,
+        W=0.5
     ):
         """Stage 3: Post-optimization, cover any remaining uncovered positives."""
         pos_remaining_idx, neg_remaining_idx = self.cn.pos_idx_neg_idx(
@@ -1121,6 +1147,7 @@ class RIPPER(AbstractRulesetClassifier):
                 max_rule_conds=max_rule_conds,
                 max_total_conds=max_total_conds,
                 random_state=random_state,
+                W=W,
             )
             if self.verbosity >= 1:
                 print("GREW FINAL RULES")
@@ -1184,7 +1211,7 @@ def _RIPPER_optimization_prune_metric_cn(cn, rule, pos_pruneset_idx, neg_prunese
     )
 
 
-def _r_theory_bits(rule, possible_conds, bits_dict=None, verbosity=0):
+def _r_theory_bits(rule, possible_conds, bits_dict=None, verbosity=0, W=0.5):
     """Returns description length (in bits) for a single Rule."""
 
     if hasattr(rule, "dl"):
@@ -1204,7 +1231,7 @@ def _r_theory_bits(rule, possible_conds, bits_dict=None, verbosity=0):
         #K = math.log2(k)  # Number bits needed to send integer k
                           # This is wrong, or at least not consistent with the theory as we should be using the universal code for
                           # integers here - Niccolò
-        rule_dl = 0.5 * (
+        rule_dl = W * (
             K + S
         )  # Divide by 2 a la Quinlan. Cohen: "to adjust for possible redundency in attributes"
         if verbosity >= 5:
@@ -1216,19 +1243,19 @@ def _r_theory_bits(rule, possible_conds, bits_dict=None, verbosity=0):
         return rule_dl
 
 
-def _rs_theory_bits(ruleset, possible_conds, verbosity=0):
+def _rs_theory_bits(ruleset, possible_conds, verbosity=0, W=0.5):
     """Returns theory description length (in bits) for a Ruleset."""
 
     # if type(ruleset) != Ruleset:
     #    raise TypeError(f'param ruleset in _rs_theory_bits should be type Ruleset')
     n = len(ruleset.rules)
     if n == 1:
-        total = 0.5*2
+        total = W*2
     else:
-        total = 0.5*2*math.log2(n)
+        total = W*2*math.log2(n)
         
     for rule in ruleset.rules:
-        total += _r_theory_bits(rule, possible_conds, verbosity=verbosity)
+        total += _r_theory_bits(rule, possible_conds, verbosity=verbosity, W=W)
         # total += rule_bits(rule, possible_conds, rem_pos, rem_neg, verbosity=verbosity)
         # rem_pos, rem_neg = base.rm_covered(rule, rem_pos, rem_neg)
     if verbosity >= 5:
@@ -1303,6 +1330,7 @@ def _rs_total_bits(
     bestsubset_dl=False,
     ret_bestsubset=False,
     verbosity=0,
+    W=0.5,
 ):
     """Returns total description length (in bits) of ruleset -- the sum of its theory dl and exceptions dl.
 
@@ -1335,7 +1363,7 @@ def _rs_total_bits(
         )
 
     if not bestsubset_dl:
-        theory_bits = _rs_theory_bits(ruleset, possible_conds, verbosity=verbosity)
+        theory_bits = _rs_theory_bits(ruleset, possible_conds, verbosity=verbosity, W=W)
         data_bits = _exceptions_bits(ruleset, pos_df, neg_df, verbosity=verbosity)
         if verbosity >= 3:
             print(f"total ruleset bits | {rnd(theory_bits + data_bits)}")
@@ -1350,7 +1378,7 @@ def _rs_total_bits(
             ruleset.rules
         ):  # Separating theory and exceptions dls in this way means you don't have to recalculate theory each time
             subset = Ruleset(ruleset.rules[: i + 1])
-            rule_theory_dl = _r_theory_bits(rule, possible_conds, verbosity=verbosity)
+            rule_theory_dl = _r_theory_bits(rule, possible_conds, verbosity=verbosity, W=W)
             theory_dl += rule_theory_dl
             exceptions_dl = _exceptions_bits(
                 subset, pos_df, neg_df, verbosity=verbosity
@@ -1395,6 +1423,7 @@ def _rs_total_bits_cn(
     bestsubset_dl=False,
     ret_bestsubset=False,
     verbosity=0,
+    W=0.5,
 ):
     """Returns total description length (in bits) of ruleset -- the sum of its theory dl and exceptions dl.
 
@@ -1427,7 +1456,7 @@ def _rs_total_bits_cn(
         )
 
     if not bestsubset_dl:
-        theory_bits = _rs_theory_bits(ruleset, possible_conds, verbosity=verbosity)
+        theory_bits = _rs_theory_bits(ruleset, possible_conds, verbosity=verbosity, W=W)
         data_bits = _exceptions_bits_cn(
             cn, ruleset, pos_idx, neg_idx, verbosity=verbosity
         )
@@ -1444,7 +1473,7 @@ def _rs_total_bits_cn(
             ruleset.rules
         ):  # Separating theory and exceptions dls in this way means you don't have to recalculate theory each time
             subset = Ruleset(ruleset.rules[: i + 1])
-            rule_theory_dl = _r_theory_bits(rule, possible_conds, verbosity=verbosity)
+            rule_theory_dl = _r_theory_bits(rule, possible_conds, verbosity=verbosity, W=W)
             theory_dl += rule_theory_dl
             exceptions_dl = _exceptions_bits_cn(
                 cn, subset, pos_idx, neg_idx, verbosity=verbosity
@@ -1471,6 +1500,7 @@ def _rs_total_bits_cn(
             neg_idx,
             bestsubset_dl=False,
             verbosity=0,
+            W=0.5
         )  # About to print value below
         if verbosity >= 5:
             print(f"best potential dl was {rnd(mdl)}")

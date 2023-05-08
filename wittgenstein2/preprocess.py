@@ -5,13 +5,13 @@ import numpy as np
 
 import pandas as pd
 
-from wittgenstein2.check import (
+from wittgenstein3.check import (
     _check_any_datasets_not_empty,
     _check_model_features_present,
     _warn_only_single_class,
 )
-from wittgenstein2.discretize import BinTransformer
-from wittgenstein2 import utils
+from wittgenstein3.discretize import BinTransformer
+from wittgenstein3 import utils
 
 
 def preprocess_training_data(preprocess_params):

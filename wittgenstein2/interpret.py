@@ -1,9 +1,9 @@
 # Author: Ilan Moscovitz <ilan.moscovitz@gmail.com>
 # License: MIT
 
-from wittgenstein2.base_functions import score_accuracy
-from wittgenstein2.ripper import RIPPER
-from wittgenstein2 import utils
+from wittgenstein3.base_functions import score_accuracy
+from wittgenstein3.ripper import RIPPER
+from wittgenstein3 import utils
 
 
 def interpret_model(
