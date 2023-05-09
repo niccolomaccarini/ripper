@@ -109,16 +109,16 @@ def param_selection(X_train, class_feat, pos_class, cv = 10, param = 'W', W = No
         else:    
         # Perform grid search to find the best value for W
         
-            ws = np.arange(0.1, 1, 0.05)
-            best_point = 0.05
-            ripper_clf = lw3.RIPPER(k = 2, W = 0.05)
+            ws = np.arange(0.2, 1, 0.1)
+            best_point = 0.1
+            ripper_clf = lw3.RIPPER(k = 2, W = best_point)
             best_score = np.mean(cross_val_score(ripper_clf, X, y, cv = cv))
 
             for w in ws:
                 # numpy.arange might make some floating point errors so we need to round the value of W after the first two digits
                 w = round(w, 2)
                 
-                ripper_clf = lw3.RIPPER(k=2, W = w)
+                ripper_clf = lw3.RIPPER(k = 2, W = w)
                 new_score = np.mean(cross_val_score(ripper_clf, X, y, cv = cv))
 
                 if new_score > best_score:
