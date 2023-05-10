@@ -10,13 +10,13 @@ import operator as op
 import pandas as pd
 from random import shuffle, seed
 
-from wittgenstein3.base import Cond, Rule, Ruleset
-from wittgenstein3.check import (
+from wittgenstein4.base import Cond, Rule, Ruleset
+from wittgenstein4.check import (
     _warn,
     _warn_only_single_class,
     _check_model_features_present,
 )
-from wittgenstein3.utils import rnd
+from wittgenstein4.utils import rnd
 
 ##########################
 ##### BASE FUNCTIONS #####

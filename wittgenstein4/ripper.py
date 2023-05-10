@@ -12,14 +12,14 @@ import numpy as np
 
 import pandas as pd
 
-from wittgenstein3 import base, base_functions, preprocess
+from wittgenstein4 import base, base_functions, preprocess
 from .abstract_ruleset_classifier import AbstractRulesetClassifier
 from .base import Cond, Rule, Ruleset, asruleset
 from .base_functions import score_accuracy
 from .catnap import CatNap
 from .check import _check_is_model_fit
-from wittgenstein3 import utils
-from wittgenstein3.utils import rnd
+from wittgenstein4 import utils
+from wittgenstein4.utils import rnd
 
 
 class RIPPER(AbstractRulesetClassifier):
@@ -32,7 +32,7 @@ class RIPPER(AbstractRulesetClassifier):
         k=2,
         dl_allowance=64,
         prune_size=0.33,
-        n_discretize_bins=10,
+        n_discretize_bins=None,
         max_rules=None,
         max_rule_conds=None,
         max_total_conds=None,
@@ -52,7 +52,7 @@ class RIPPER(AbstractRulesetClassifier):
             Terminate Ruleset grow phase early if a Ruleset description length is encountered
             that is more than this amount above the lowest description length so far encountered.
         n_discretize_bins : int, default=10
-            Fit apparent numeric attributes into a maximum of n_discretize_bins discrete bins, inclusive on upper part of range. Pass None to disable auto-discretization.
+            Fit apparent numeric attributes into a maximum of n_discretize_bins discrete bins, inclusive on upper part of range. Pass None to enable automatic detection of the best value.
         random_state : int, default=None
             Random seed for repeatable results.
 
@@ -91,6 +91,7 @@ class RIPPER(AbstractRulesetClassifier):
         self.k = k
         self.dl_allowance = dl_allowance
         self.W = W
+        self.n_discretize_bins = n_discretize_bins
 
     def __str__(self):
         """Return string representation of a RIPPER classifier."""
@@ -106,10 +107,89 @@ class RIPPER(AbstractRulesetClassifier):
     def out_model(self):
         """Print trained Ruleset model line-by-line: V represents 'or'; ^ represents 'and'."""
         super().out_model()
-
+        
     def fit(
         self,
         trainset,
+        y=None,
+        class_feat=None,
+        pos_class=None,
+        feature_names=None,
+        initial_model=None,
+        cn_optimize=True,
+        n_discretize_bins=None,
+        **kwargs,
+    ):
+        """Fit a model with RIPPERk by selecting first the number of discretization bins. This is an intermediate step added to the 
+        original algorithm to enhance performance. The step can be skipped by giving an argument different from None when calling the
+        function RIPPER."""
+        
+        if n_discretize_bins != None:
+            self.fit_rules(
+                trainset,
+                y=y,
+                class_feat=class_feat,
+                pos_class=pos_class,
+                feature_names=feature_names,
+                initial_model=intial_model,
+                cn_optimize=cn_optimize,
+                n_discretize_bins=n_discretize_bins,
+                **kwargs,)
+        
+        else:
+            # First find the maximum possible value for the discretization bins
+            n_variables = trainset.shape[1]
+            maximum_discr_bins = 2
+            for i in range(n_variables):
+                n = len(np.unique(np.asarray(trainset)[:, i])) # Number of unique elements in the i-th variable
+                maximum_discr_bins = max(maximum_discr_bins, n)
+                
+            # In any case, for better interpretability and faster convergence,
+            # we prefer not to have more than 20 discretization bins
+            maximum_discr_bins = min(maximum_discr_bins, 20)
+                
+            # Now run a separate RIPPER model for every fixed number of discretization bins and save the results
+            rulesets = []
+            min_dls = []
+            bin_transformers = []
+            
+            for i in range(2, maximum_discr_bins + 1):
+                self.n_discretize_bins = i
+                self.fit_rules(
+                    trainset,
+                    n_discretize_bins = i,
+                    y=None,
+                    class_feat=class_feat,
+                    pos_class=pos_class,
+                    feature_names=feature_names,
+                    initial_model=initial_model,
+                    cn_optimize=cn_optimize,
+                    **kwargs,)
+                
+                rulesets += [self.ruleset_]
+                min_dls += [self.dl]
+                bin_transformers += [self.bin_transformer_]
+                
+            self.ruleset_ = rulesets[np.argmin(min_dls)] # Select the best ruleset
+            self.n_discretize_bins = range(2, maximum_discr_bins + 1)[np.argmin(min_dls)]
+            self.dl = min(min_dls)
+            self.bin_transformer_ = bin_transformers[np.argmin(min_dls)]
+            
+            if self.verbosity >= 1:
+                print("FINAL RULESET chosen:")
+                self.ruleset_.out_pretty()
+                print()
+
+            # Issue warning if Ruleset is universal or empty
+            self.ruleset_._check_allpos_allneg(warn=True, warnstack=[("ripper", "fit")])
+
+            # Set Ruleset features
+            self.selected_features_ = self.ruleset_.get_selected_features()
+
+    def fit_rules(
+        self,
+        trainset,
+        n_discretize_bins,
         y=None,
         class_feat=None,
         pos_class=None,
@@ -184,7 +264,7 @@ class RIPPER(AbstractRulesetClassifier):
             "class_feat": class_feat,
             "pos_class": pos_class,
             "feature_names": feature_names,
-            "n_discretize_bins": self.n_discretize_bins,
+            "n_discretize_bins": n_discretize_bins,
             "verbosity": self.verbosity,
         }
         (
@@ -328,7 +408,7 @@ class RIPPER(AbstractRulesetClassifier):
         if self.verbosity >= 2:
             print("Optimizing dl...")
         if cn_optimize:
-            mdl_subset, _ = _rs_total_bits_cn(
+            mdl_subset, dl = _rs_total_bits_cn(
                 self.cn,
                 self.ruleset_,
                 self.ruleset_.possible_conds,
@@ -340,7 +420,7 @@ class RIPPER(AbstractRulesetClassifier):
                 W=self.W
             )
         else:
-            mdl_subset, _ = _rs_total_bits(
+            mdl_subset, dl = _rs_total_bits(
                 self.ruleset_,
                 self.ruleset_.possible_conds,
                 pos_df,
@@ -350,7 +430,9 @@ class RIPPER(AbstractRulesetClassifier):
                 verbosity=self.verbosity,
                 W=self.W
             )
+            
         self.ruleset_ = mdl_subset
+        self.dl = dl # When fitting the model we also save the total description length used
         if self.verbosity >= 1:
             print("FINAL RULESET:")
             self.ruleset_.out_pretty()
@@ -497,7 +579,7 @@ class RIPPER(AbstractRulesetClassifier):
                 )
                 theory_dl = rule_dl
                 data_dl = _exceptions_bits(
-                    ruleset, pos_df, neg_df, verbosity=self.verbosity, W=W
+                    ruleset, pos_df, neg_df, verbosity=self.verbosity
                 )
                 ruleset_dl = theory_dl + data_dl
                 mdl = ruleset_dl
@@ -507,7 +589,7 @@ class RIPPER(AbstractRulesetClassifier):
                 )
                 theory_dl += rule_dl
                 data_dl = _exceptions_bits(
-                    ruleset, pos_df, neg_df, verbosity=self.verbosity, W=W
+                    ruleset, pos_df, neg_df, verbosity=self.verbosity
                 )
                 ruleset_dl = theory_dl + data_dl
                 dl_diff = ruleset_dl - mdl

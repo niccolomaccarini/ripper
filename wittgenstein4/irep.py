@@ -12,7 +12,7 @@ import random
 
 import pandas as pd
 
-from wittgenstein3 import utils, base, base_functions, preprocess
+from wittgenstein4 import utils, base, base_functions, preprocess
 from .catnap import CatNap
 from .check import _check_param_deprecation
 from .abstract_ruleset_classifier import AbstractRulesetClassifier

@@ -7,8 +7,8 @@ import numpy as np
 
 import pandas as pd
 
-from wittgenstein3.check import _check_is_model_fit, _warn
-from wittgenstein3.base import (
+from wittgenstein4.check import _check_is_model_fit, _warn
+from wittgenstein4.base import (
     Rule,
     Ruleset,
     asrule,
@@ -16,9 +16,9 @@ from wittgenstein3.base import (
     cond_fromstr,
     ruleset_fromstr,
 )
-import wittgenstein3.base_functions as base_functions
-import wittgenstein3.preprocess as preprocess
-from wittgenstein3.preprocess import BinTransformer, _upgrade_bin_transformer_ifdepr
+import wittgenstein4.base_functions as base_functions
+import wittgenstein4.preprocess as preprocess
+from wittgenstein4.preprocess import BinTransformer, _upgrade_bin_transformer_ifdepr
 
 
 class AbstractRulesetClassifier(ABC):

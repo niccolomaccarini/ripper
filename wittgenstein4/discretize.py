@@ -6,8 +6,8 @@ from collections import defaultdict
 import numpy as np
 import pandas as pd
 
-from wittgenstein3.base_functions import truncstr
-from wittgenstein3.utils import rnd
+from wittgenstein4.base_functions import truncstr
+from wittgenstein4.utils import rnd
 
 
 class BinTransformer:
