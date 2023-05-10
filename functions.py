@@ -5,12 +5,21 @@ import wittgenstein4 as lw4
 import wittgenstein as lw
 from sklearn.model_selection import cross_val_score
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import f1_score
+from sklearn.model_selection import cross_validate
+from sklearn.metrics import roc_auc_score
 
 
-def accuracy(df, class_feat, pos_class, cv=10, n_rep=10, W=0.5):
+def accuracy(df, class_feat, pos_class, cv=5, n_rep=10, W=0.5, metrics = ['accuracy']):
     
     """Function to rapidly compute the accuracy of RIPPERk using k-fold cross-validation,
-    the test will be repeated n_rep times ans then the average accuracy will be returned"""
+    the test will be repeated n_rep times ans then the average accuracy will be returned
+    
+    metrics : list of metrics used to evaluate the accuracy, if it has only one element the function
+    will return a float estimating the accuracy. If the list is longer than 1 the function will return a numpy array
+    with all desired measures in the order given in the input. The options are:
+    'standard' , 'F1' , 'acu' respectively for standard, F1 and area under the curve scores.
+    """
     
     # First dummify your categorical features and booleanize your class values to make sklearn happy
 
@@ -18,37 +27,41 @@ def accuracy(df, class_feat, pos_class, cv=10, n_rep=10, W=0.5):
     X = pd.get_dummies(X, columns=X.select_dtypes('object').columns)
     y = df[class_feat]
     y = y.map(lambda x: 1 if x==pos_class else 0)
+                
+    acc = np.zeros((n_rep, len(metrics)))
     
-    
-    acc = []
-
     for i in range(n_rep):
         ripper_clf = lw4.RIPPER(k=2, W=W)
-        scores = cross_val_score(ripper_clf, X, y, cv = 10) 
-        acc += [scores]
+        scores = cross_validate(ripper_clf, X, y, scoring = metrics, cv = cv)
+        acc[i,:] = scores
+        
+    acc = np.mean(acc, axis = 0)
+    
+    return acc
+                
 
-    return np.mean(acc)
-
-def acc_rate(df_train, df_test, class_feat, pos_class, cv=10, n_rep=10, W=0.5):
+def acc_rate(df_train, df_test, class_feat, pos_class, cv=5, n_rep=10, W=0.5, metrics = ['accuracy']):
     
     """Function to compare the accuracies of standard RIPPERk and enhanced RIPPERk on a given dataset df: first 
     the accuracies of both models acc_standard and acc_enhanced are computed, then the fraction 
                                      acc_enhanced / acc_standard
     is returned. """
     
-    # Compute the accuracy of standard RIPPERk
-    
+    # First dummify your categorical features and booleanize your class values to make sklearn happy
+
     X = df.loc[:,df.columns != class_feat]
     X = pd.get_dummies(X, columns=X.select_dtypes('object').columns)
     y = df[class_feat]
     y = y.map(lambda x: 1 if x==pos_class else 0)
+                
+    acc_standard = np.zeros((n_rep, len(metrics)))
     
-    acc_standard = []
-
     for i in range(n_rep):
-        ripper_clf = lw.RIPPER(k=2)
-        scores = cross_val_score(ripper_clf, X, y, cv = 10) 
-        acc_standard += [scores]
+        ripper_clf = lw.RIPPER(k=2, W=W)
+        scores = cross_validate(ripper_clf, X, y, scoring = metrics, cv = cv)
+        acc_standard[i,:] = scores
+        
+    acc_standard = np.mean(acc_standard, axis = 0)
         
     acc_enhanced = accuracy(df, class_feat, pos_class, cv=cv, n_rep=n_rep, W=W)   
     
