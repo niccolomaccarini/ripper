@@ -249,7 +249,7 @@ def entropy(df = None, y = None, class_feat = None, pos_class = None):
     but adding the faculty of working with string vectors or datasets with a given class feature. Results are normalized 
     by dividing for the logarithm of the length of y.'''
     
-    if y:
+    if y is not None:
         # If y is not numeric, then one needs to pass a positive class as input
         if pos_class:
             y = y.map(lambda x: 1 if x==pos_class else 0)
