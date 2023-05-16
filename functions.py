@@ -5,7 +5,8 @@ import wittgenstein3 as lw4
 import wittgenstein as lw
 from sklearn.metrics import f1_score, roc_auc_score, accuracy_score
 from sklearn.model_selection import GridSearchCV, cross_val_score, StratifiedKFold, cross_validate, train_test_split
-
+from scipy.stats import entropy
+import math
 
 def accuracy(df, class_feat, pos_class, cv=5, n_rep=10, W=0.5, metrics = ['accuracy']):
     
@@ -241,4 +242,24 @@ def acc_rate_with_param_selection(df,
         return output
     
     return dict(zip(labels, output))
+
+def entropy(df = None, y = None, class_feat = None, pos_class = None):
+    
+    '''Function to compute the Shannon entropy of a given vector of probabilities. It is built on scipy.stats.entropy
+    but adding the faculty of working with string vectors or datasets with a given class feature. Results are normalized 
+    by dividing for the logarithm of the length of y.'''
+    
+    if y:
+        # If y is not numeric, then one needs to pass a positive class as input
+        if pos_class:
+            y = y.map(lambda x: 1 if x==pos_class else 0)
+            
+        return entropy(y) / math.log2(len(y))
+    
+    else:
+        # When y is not given as input, then df, class_feat and pos_class must be
+        y = df[class_feat]
+        y = y.map(lambda x: 1 if x==pos_class else 0)
+        
+        return entropy(y) / math.log2(len(y))
                               
