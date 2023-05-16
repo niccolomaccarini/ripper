@@ -208,7 +208,7 @@ class AbstractRulesetClassifier(ABC):
         y=None,
         feature_names=None,
         min_samples=20,
-        require_min_samples=True,
+        require_min_samples=False,
         discretize=True,
     ):
         """Recalibrate a classifier's probability estimations using unseen labeled data. May improve .predict_proba generalizability.

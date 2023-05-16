@@ -1,13 +1,10 @@
 import numpy as np
 import pandas as pd
 import scipy
-import wittgenstein4 as lw4
+import wittgenstein3 as lw4
 import wittgenstein as lw
-from sklearn.model_selection import cross_val_score
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import f1_score
-from sklearn.model_selection import cross_validate
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import f1_score, roc_auc_score, accuracy_score
+from sklearn.model_selection import GridSearchCV, cross_val_score, StratifiedKFold, cross_validate, train_test_split
 
 
 def accuracy(df, class_feat, pos_class, cv=5, n_rep=10, W=0.5, metrics = ['accuracy']):
@@ -16,9 +13,9 @@ def accuracy(df, class_feat, pos_class, cv=5, n_rep=10, W=0.5, metrics = ['accur
     the test will be repeated n_rep times ans then the average accuracy will be returned
     
     metrics : list of metrics used to evaluate the accuracy, if it has only one element the function
-    will return a float estimating the accuracy. If the list is longer than 1 the function will return a numpy array
+    will return a float estimating the metric. If the list is longer than 1 the function will return a dictionary
     with all desired measures in the order given in the input. The options are:
-    'standard' , 'F1' , 'acu' respectively for standard, F1 and area under the curve scores.
+    'accuracy' , 'f1' , 'roc_auc' respectively for standard, F1 and area under the curve scores.
     """
     
     # First dummify your categorical features and booleanize your class values to make sklearn happy
@@ -33,14 +30,18 @@ def accuracy(df, class_feat, pos_class, cv=5, n_rep=10, W=0.5, metrics = ['accur
     for i in range(n_rep):
         ripper_clf = lw4.RIPPER(k=2, W=W)
         scores = cross_validate(ripper_clf, X, y, scoring = metrics, cv = cv)
-        acc[i,:] = scores
+        acc[i,:] = [np.mean(scores['test_' + metric]) for metric in metrics]
         
     acc = np.mean(acc, axis = 0)
+    output = list(acc)
     
-    return acc
+    if len(metrics) > 1:
+        return dict(zip(metrics, output))
+    
+    return output[0]
                 
 
-def acc_rate(df_train, df_test, class_feat, pos_class, cv=5, n_rep=10, W=0.5, metrics = ['accuracy']):
+def acc_rate(df, class_feat, pos_class, cv=5, n_rep=10, W=0.5, metrics = ['accuracy']):
     
     """Function to compare the accuracies of standard RIPPERk and enhanced RIPPERk on a given dataset df: first 
     the accuracies of both models acc_standard and acc_enhanced are computed, then the fraction 
@@ -57,28 +58,40 @@ def acc_rate(df_train, df_test, class_feat, pos_class, cv=5, n_rep=10, W=0.5, me
     acc_standard = np.zeros((n_rep, len(metrics)))
     
     for i in range(n_rep):
-        ripper_clf = lw.RIPPER(k=2, W=W)
+        ripper_clf = lw.RIPPER(k=2)
         scores = cross_validate(ripper_clf, X, y, scoring = metrics, cv = cv)
-        acc_standard[i,:] = scores
+        acc_standard[i,:] = [np.mean(scores['test_' + metric]) for metric in metrics]
         
-    acc_standard = np.mean(acc_standard, axis = 0)
-        
-    acc_enhanced = accuracy(df, class_feat, pos_class, cv=cv, n_rep=n_rep, W=W)   
+    acc_standard = np.mean(acc_standard, axis = 0)    
+    acc_enhanced = accuracy(df, class_feat, pos_class, cv=cv, n_rep=n_rep, W=W)
     
-    return acc_enhanced / acc_standard
+    if len(metrics) > 1:
+        return dict(zip(metrics, list(acc_enhanced/acc_standard)))
+    
+    return (acc_enhanced / acc_standard)[0]
 
     
     
-def param_selection(X_train, class_feat, pos_class, cv = 10, param = 'W', W = None, budget = 15, grid_search = True, verbosity = True):
+def param_selection(df,
+                    class_feat, 
+                    pos_class, 
+                    cv = 5, 
+                    param = 'W',
+                    W = None,
+                    budget = 15,
+                    grid_search = True,
+                    verbosity = False,
+                    return_model = False):
     
     """Function to select the best hyperparameter using k-fold cross validation, as input it needs
-    a training set with a given class_feat to classify. It can be used to select both W and the number of discretization bins."""
+    a training set with a given class_feat to classify. It can be used to select both W and the number of discretization bins.
+    """
     
     # Preprocess the data as usual
     
-    X = X_train.loc[:,X_train.columns != class_feat]
+    X = df.loc[:, df.columns != class_feat]
     X = pd.get_dummies(X, columns=X.select_dtypes('object').columns)
-    y = X_train[class_feat]
+    y = df[class_feat]
     y = y.map(lambda x: 1 if x==pos_class else 0)
     
     # Define how to select the best element in the interval's 1/4th and 3/4th
@@ -87,7 +100,6 @@ def param_selection(X_train, class_feat, pos_class, cv = 10, param = 'W', W = No
         interval = [0,1]
         
         if grid_search == False:
-            print('We blababvsvdsf')
         
             def return_best_a(interval):
                 low = interval[0]
@@ -122,70 +134,111 @@ def param_selection(X_train, class_feat, pos_class, cv = 10, param = 'W', W = No
         else:    
         # Perform grid search to find the best value for W
         
-            ws = np.arange(0.2, 1, 0.1)
-            best_point = 0.1
-            ripper_clf = lw4.RIPPER(k = 2, W = best_point)
-            best_score = np.mean(cross_val_score(ripper_clf, X, y, cv = cv))
-
-            for w in ws:
-                # numpy.arange might make some floating point errors so we need to round the value of W after the first two digits
-                w = round(w, 2)
+            ws = np.arange(0.1, 1, 0.1)
+            scores = np.zeros((10, len(ws)))
+            models = np.zeros((10, len(ws)), dtype = np.object_)
+            
+            for i in range(10):
+                X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
                 
-                ripper_clf = lw4.RIPPER(k = 2, W = w)
-                new_score = np.mean(cross_val_score(ripper_clf, X, y, cv = cv))
+                for j in range(len(ws)):
+                    # numpy.arange might make some floating point errors so we need to round the value of W after the first two digits
+                    w = ws[j]
+                    w = round(w, 2)
 
-                if new_score > best_score:
-                    best_score = new_score
-                    best_point = w
+                    ripper_clf = lw4.RIPPER(k = 2, W = w)
+                    ripper_clf.fit(pd.concat([X_train,y_train], axis=1), class_feat = class_feat)
+                    scores[i, j] = ripper_clf.score(X_test,y_test)
+                    models[i, j] = ripper_clf
+ 
+            scores_avg = np.mean(scores, axis = 0)
+            best_score_index = np.argmax(scores_avg)
+            best_point = round(ws[best_score_index], 2)
+            best_model = models[np.argmax(scores[:, best_score_index]), best_score_index]
                     
         if verbosity:
             print('Best W found: ' + str(best_point) + ' , best score: ' + str(best_score))
+            
+        if return_model:
+            return best_point, best_model
             
         return best_point
 
 
         
-def acc_rate_with_param_selection(df, class_feat, pos_class, cv = 10, param = 'W', W = None, budget = 15):
+def acc_rate_with_param_selection(df,
+                                  class_feat, 
+                                  pos_class, 
+                                  cv_outer = 10,
+                                  cv_inner = 5,
+                                  param = 'W',
+                                  W = None,
+                                  budget = 15,
+                                  metrics = [accuracy_score],
+                                  n_rep = 10):
     
-    """Function to compute the accuracy rate of improved RIPPERk using optimized W and standard RIPPERk. The idea is to
-    separate the dataset in a training and test set, and select via cross validation on X_train the best W. Then compare the two
-    algorithms on the test set and return the accuracy rate."""
+    """Function to compute the accuracy rate of improved RIPPERk using optimized W and standard RIPPERk. The idea is to 
+    select via nested cross validation on X the best W, in the inner loop. Then compare the two
+    algorithms on the test set and return the scorings rate. In this function the metrics' names don't have to be
+    passed as strings."""
     
-    # Separate the data in training and test set
-    
-    X_train, X_test = train_test_split(df, test_size = 0.25)
-    
-    # Find the best value for W
-    
-    W = param_selection(X_train, class_feat, pos_class, cv = cv, param = 'W', W = None, budget = budget)
-    
-    # Train the algorithms
-    
-    acc_standard = []
-    acc_improved = []
-    
-    for i in range(10):
-    
-        ripper_standard = lw.RIPPER(k=2)
-        ripper_improved = lw4.RIPPER(k=2, W=W)
+    # First dummify your categorical features and booleanize your class values to make sklearn happy
+    X = df.loc[:,df.columns != class_feat]
+    X = pd.get_dummies(X, columns=X.select_dtypes('object').columns)
+    y = df[class_feat]
+    y = y.map(lambda x: 1 if x==pos_class else 0)
+                
+    # Set the parameter grid for W and define an array to contain all scores
+    acc_standard = np.zeros((n_rep, len(metrics)))
+    acc_improved = np.zeros((n_rep, len(metrics)))
+    p_grid = np.arange(0.1, 1, 0.1)
 
-        ripper_standard.fit(X_train, class_feat = class_feat, pos_class = pos_class)
-        y_test = X_test[class_feat]
-        acc_standard += [ripper_standard.score(X_test, y_test)]
+    for i in range(n_rep):
+        cv_out = StratifiedKFold(cv_outer)
+        cv_in = StratifiedKFold(cv_inner)
+        scores_run_stand = np.zeros((len(metrics), cv_out.n_splits))
+        scores_run = np.zeros((len(metrics), cv_out.n_splits))
+        k = 0
+                              
+        for train_ix, test_ix in cv_out.split(X, y):
+            # Split data
+            X_train, X_test = X.loc[train_ix, :], X.loc[test_ix, :]
+            y_train, y_test = y[train_ix], y[test_ix]
 
-        ripper_improved.fit(X_train, class_feat = class_feat, pos_class = pos_class)
-        y_test = X_test[class_feat]
-        acc_improved += [ripper_improved.score(X_test, y_test)]
-        
+            # Define the models, train standard RIPPERk on the training set
+            ripper_standard = lw.RIPPER(k=2)
+            ripper_standard.fit(pd.concat([X_train,y_train], axis=1), class_feat = 0)
+
+            # Execute search for best W and return the best model too
+            best_W, best_model = param_selection(df = pd.concat([X_train,y_train], axis=1), 
+                                                    class_feat = class_feat, 
+                                                    pos_class = pos_class,
+                                                    return_model = True,
+                                                    cv = cv_in)
+
+            # Predict the values of the test set and compute scores
+            y_hat_stand = ripper_standard.predict(X_test)
+            y_hat = best_model.predict(X_test)  
+
+            for j in range(len(metrics)):
+                metric = metrics[j]
+                scores_run_stand[j,k] = metric(y_hat_stand, y_test)
+                scores_run[j,k] = metric(y_hat, y_test)
+
+            k += 1
+                              
+                              
+        # store the result
+        acc_standard[i,] = np.mean(scores_run_stand, axis = 1)
+        acc_improved[i,] = np.mean(scores_run, axis = 1)
+                              
+                              
+    acc_rate = acc_improved / acc_standard
+    output = np.mean(acc_rate, axis = 0)
+    labels = [str(metric) for metric in metrics]
     
-        
-    return {'acc_rate': np.mean(acc_improved) / np.mean(acc_standard), 'acc_standard': np.mean(acc_standard), 
-            'acc_improved': np.mean(acc_improved)}
-        
-        
-        
-        
-        
-        
+    if len(metrics) == 1:
+        return output
     
-    
+    return dict(zip(labels, output))
+                              

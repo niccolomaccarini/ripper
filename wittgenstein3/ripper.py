@@ -38,7 +38,7 @@ class RIPPER(AbstractRulesetClassifier):
         max_total_conds=None,
         random_state=None,
         verbosity=0,
-        W = 0.5
+        W=0.5
     ):
         """Create a RIPPER classifier.
 
@@ -90,7 +90,7 @@ class RIPPER(AbstractRulesetClassifier):
         self.VALID_HYPERPARAMETERS.update({"k", "dl_allowance"})
         self.k = k
         self.dl_allowance = dl_allowance
-        self.W = W
+        self.W=W
 
     def __str__(self):
         """Return string representation of a RIPPER classifier."""
@@ -1249,7 +1249,10 @@ def _rs_theory_bits(ruleset, possible_conds, verbosity=0, W=0.5):
     # if type(ruleset) != Ruleset:
     #    raise TypeError(f'param ruleset in _rs_theory_bits should be type Ruleset')
     n = len(ruleset.rules)
-    if n == 1:
+    
+    if n == 0:
+        return 0
+    elif n == 1:
         total = W*2
     else:
         total = W*2*math.log2(n)

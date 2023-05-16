@@ -158,7 +158,7 @@ class RIPPER(AbstractRulesetClassifier):
                 self.fit_rules(
                     trainset,
                     n_discretize_bins = i,
-                    y=None,
+                    y=y,
                     class_feat=class_feat,
                     pos_class=pos_class,
                     feature_names=feature_names,
