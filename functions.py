@@ -75,7 +75,7 @@ def acc_rate(df, class_feat, pos_class, cv=5, n_rep=10, W=0.5, metrics = ['accur
     
 def param_selection(df,
                     class_feat, 
-                    pos_class, 
+                    pos_class = 1, 
                     cv = 5, 
                     param = 'W',
                     W = None,
@@ -208,12 +208,11 @@ def acc_rate_with_param_selection(df,
 
             # Define the models, train standard RIPPERk on the training set
             ripper_standard = lw.RIPPER(k=2)
-            ripper_standard.fit(pd.concat([X_train,y_train], axis=1), class_feat = 0)
+            ripper_standard.fit(pd.concat([X_train,y_train], axis=1), class_feat = class_feat)
 
             # Execute search for best W and return the best model too
             best_W, best_model = param_selection(df = pd.concat([X_train,y_train], axis=1), 
                                                     class_feat = class_feat, 
-                                                    pos_class = pos_class,
                                                     return_model = True,
                                                     cv = cv_in)
 
@@ -222,9 +221,12 @@ def acc_rate_with_param_selection(df,
             y_hat = best_model.predict(X_test)  
 
             for j in range(len(metrics)):
-                metric = metrics[j]
-                scores_run_stand[j,k] = metric(y_hat_stand, y_test)
-                scores_run[j,k] = metric(y_hat, y_test)
+                try:
+                    metric = metrics[j]
+                    scores_run_stand[j,k] = metric(y_hat_stand, y_test)
+                    scores_run[j,k] = metric(y_hat, y_test)
+                except:
+                    print(str(metrics[j]) + ' not defined in this case.')
 
             k += 1
                               
@@ -236,14 +238,14 @@ def acc_rate_with_param_selection(df,
                               
     acc_rate = acc_improved / acc_standard
     output = np.mean(acc_rate, axis = 0)
-    labels = [str(metric) for metric in metrics]
+    labels = [str(metric)[9:] for metric in metrics]
     
     if len(metrics) == 1:
         return output
     
     return dict(zip(labels, output))
 
-def entropy(df = None, y = None, class_feat = None, pos_class = None):
+def normalized_entropy(df = None, y = None, class_feat = None, pos_class = None):
     
     '''Function to compute the Shannon entropy of a given vector of probabilities. It is built on scipy.stats.entropy
     but adding the faculty of working with string vectors or datasets with a given class feature. Results are normalized 
@@ -262,4 +264,13 @@ def entropy(df = None, y = None, class_feat = None, pos_class = None):
         y = y.map(lambda x: 1 if x==pos_class else 0)
         
         return entropy(y) / math.log2(len(y))
-                              
+    
+def max_n_categories(df):
+    '''Function to compute the number of possible categories for every variable of the dataset. Given a pandas
+    dataframe it will return the maximum number of instances contained in every column.'''
+        
+    def count_elements(vector):
+        return len(vector.unique())
+    counts = df.apply(count_elements, axis = 0)
+    
+    return np.max(counts)                 

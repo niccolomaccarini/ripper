@@ -1222,6 +1222,9 @@ def _r_theory_bits(rule, possible_conds, bits_dict=None, verbosity=0, W=0.5):
         k = len(rule.conds)  # Number of rule conditions
         n = len(possible_conds)  # Number of possible conditions
         pr = k / n
+        
+        if k == 0:
+            return 0
 
         S = k * math.log2(1 / pr) + (n - k) * math.log2((1 / (1 - pr)))  # S(n, k, pr)
         if k == 1:
